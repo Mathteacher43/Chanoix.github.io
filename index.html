@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>온라인 채팅</title>
+    <title>보안 채팅</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -14,8 +14,8 @@
             box-sizing: border-box;
         }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #f5f7fa;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -24,53 +24,52 @@
             overflow: hidden;
         }
         
-        /* 기하학적 배경 도형들 */
         .bg-shape {
             position: absolute;
-            opacity: 0.1;
+            opacity: 0.08;
             pointer-events: none;
         }
         .circle1 {
-            width: 400px;
-            height: 400px;
+            width: 500px;
+            height: 500px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            top: -200px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            top: -250px;
             left: -200px;
         }
         .circle2 {
-            width: 300px;
-            height: 300px;
+            width: 350px;
+            height: 350px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #ec4899, #f43f5e);
+            background: linear-gradient(135deg, #f093fb, #f5576c);
             bottom: -150px;
-            right: -150px;
+            right: -100px;
         }
         .square1 {
-            width: 200px;
-            height: 200px;
-            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
             transform: rotate(45deg);
-            top: 10%;
-            right: 10%;
+            top: 8%;
+            right: 12%;
         }
         .square2 {
-            width: 150px;
-            height: 150px;
-            background: linear-gradient(135deg, #10b981, #14b8a6);
-            transform: rotate(30deg);
-            bottom: 15%;
-            left: 8%;
+            width: 180px;
+            height: 180px;
+            background: linear-gradient(135deg, #43e97b, #38f9d7);
+            transform: rotate(25deg);
+            bottom: 20%;
+            left: 10%;
         }
         .triangle {
             width: 0;
             height: 0;
-            border-left: 100px solid transparent;
-            border-right: 100px solid transparent;
-            border-bottom: 173px solid #a78bfa;
-            top: 50%;
-            left: 5%;
-            transform: rotate(20deg);
+            border-left: 120px solid transparent;
+            border-right: 120px solid transparent;
+            border-bottom: 200px solid #a18cd1;
+            top: 45%;
+            left: 3%;
+            transform: rotate(15deg);
         }
         
         #root {
@@ -79,6 +78,15 @@
             padding: 20px;
             position: relative;
             z-index: 1;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
         }
     </style>
 </head>
@@ -94,18 +102,69 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 욕설 필터 리스트
+        // ==================== 보안 유틸리티 ====================
+        
+        // 간단한 해시 함수 (실제 프로덕션에서는 서버 사이드에서 bcrypt 등 사용)
+        async function hashPassword(password, salt = '') {
+            const text = salt + password + 'SECRET_SALT_2024';
+            const msgBuffer = new TextEncoder().encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // XSS 방지를 위한 HTML 이스케이프
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;',
+                '/': '&#x2F;'
+            };
+            return String(text).replace(/[&<>"'/]/g, (s) => map[s]);
+        }
+
+        // 입력 검증 함수
+        function validateUsername(username) {
+            if (!username || typeof username !== 'string') {
+                return { valid: false, error: '아이디를 입력해주세요.' };
+            }
+            const trimmed = username.trim();
+            if (trimmed.length < 3 || trimmed.length > 20) {
+                return { valid: false, error: '아이디는 3-20자여야 합니다.' };
+            }
+            if (!/^[a-zA-Z0-9가-힣_]+$/.test(trimmed)) {
+                return { valid: false, error: '아이디는 영문, 숫자, 한글, _만 사용 가능합니다.' };
+            }
+            return { valid: true, value: trimmed };
+        }
+
+        function validatePassword(password) {
+            if (!password || typeof password !== 'string') {
+                return { valid: false, error: '비밀번호를 입력해주세요.' };
+            }
+            if (password.length < 6 || password.length > 50) {
+                return { valid: false, error: '비밀번호는 6-50자여야 합니다.' };
+            }
+            if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+                return { valid: false, error: '비밀번호는 영문과 숫자를 포함해야 합니다.' };
+            }
+            return { valid: true, value: password };
+        }
+
+        // 욕설 필터
         const profanityList = [
-            '시발', '씨발', '개새', '병신', '지랄', '좆', '씹', 'nigga', 
+            '시발', '씨발', '개새', '병신', '지랄', '좆', '씹', 
             '미친', '또라이', '염병', '엿', '개자식', '새끼', '년', 
-            '쓰레기', '개XX', '존나', 'fuck', 'shit', 'bitch', 'ass',
-            '꺼져', '죽어', '멍청이', '바보', '등신', '놈', '뇬',
-            '애미', '애비', '호로', '창녀', '썅', '니애미', '느금'
+            '쓰레기', '존나', 'fuck', 'shit', 'bitch', 'ass',
+            '꺼져', '죽어', '멍청', '바보', '등신', '놈',
+            '애미', '애비', '창녀', '썅', '느금', '빨갱이'
         ];
 
-        // 욕설 필터 함수
         function filterProfanity(text) {
-            let filtered = text;
+            let filtered = escapeHtml(text);
             profanityList.forEach(word => {
                 const regex = new RegExp(word, 'gi');
                 filtered = filtered.replace(regex, (match) => '*'.repeat(match.length));
@@ -113,7 +172,64 @@
             return filtered;
         }
 
-        // 로그인/회원가입 컴포넌트
+        // ==================== Storage 유틸리티 ====================
+        
+        const Storage = {
+            // 안전한 get
+            async get(key, shared = false) {
+                try {
+                    const result = await window.storage.get(key, shared);
+                    return result;
+                } catch (error) {
+                    console.log(`Storage get error for key ${key}:`, error.message);
+                    return null;
+                }
+            },
+            
+            // 안전한 set (재시도 로직 포함)
+            async set(key, value, shared = false, retries = 3) {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const result = await window.storage.set(key, value, shared);
+                        if (result) {
+                            return result;
+                        }
+                        // 실패 시 대기 후 재시도
+                        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+                    } catch (error) {
+                        console.log(`Storage set attempt ${i + 1} failed:`, error.message);
+                        if (i === retries - 1) {
+                            throw error;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+                    }
+                }
+                throw new Error('Storage set failed after retries');
+            },
+            
+            // 안전한 delete
+            async delete(key, shared = false) {
+                try {
+                    return await window.storage.delete(key, shared);
+                } catch (error) {
+                    console.log(`Storage delete error:`, error.message);
+                    return null;
+                }
+            },
+            
+            // 안전한 list
+            async list(prefix = '', shared = false) {
+                try {
+                    return await window.storage.list(prefix, shared);
+                } catch (error) {
+                    console.log(`Storage list error:`, error.message);
+                    return { keys: [] };
+                }
+            }
+        };
+
+        // ==================== 로그인/회원가입 컴포넌트 ====================
+        
         function AuthScreen({ onLogin }) {
             const [isLogin, setIsLogin] = useState(true);
             const [username, setUsername] = useState('');
@@ -121,173 +237,211 @@
             const [confirmPassword, setConfirmPassword] = useState('');
             const [error, setError] = useState('');
             const [loading, setLoading] = useState(false);
+            const [debugInfo, setDebugInfo] = useState('');
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setError('');
+                setDebugInfo('');
                 setLoading(true);
 
-                if (!username.trim() || !password.trim()) {
-                    setError('아이디와 비밀번호를 입력해주세요.');
-                    setLoading(false);
-                    return;
-                }
-
-                if (username.length < 3) {
-                    setError('아이디는 3글자 이상이어야 합니다.');
-                    setLoading(false);
-                    return;
-                }
-
-                if (password.length < 4) {
-                    setError('비밀번호는 4글자 이상이어야 합니다.');
-                    setLoading(false);
-                    return;
-                }
-
                 try {
+                    // 1. 입력 검증
+                    const usernameValidation = validateUsername(username);
+                    if (!usernameValidation.valid) {
+                        setError(usernameValidation.error);
+                        setLoading(false);
+                        return;
+                    }
+
+                    const passwordValidation = validatePassword(password);
+                    if (!passwordValidation.valid) {
+                        setError(passwordValidation.error);
+                        setLoading(false);
+                        return;
+                    }
+
+                    const cleanUsername = usernameValidation.value;
+                    const cleanPassword = passwordValidation.value;
+
                     if (isLogin) {
-                        // 로그인
-                        const result = await window.storage.get(`user:${username}`, true);
-                        if (result && result.value) {
-                            const userData = JSON.parse(result.value);
-                            if (userData.password === password) {
-                                onLogin(username);
-                            } else {
-                                setError('비밀번호가 일치하지 않습니다.');
-                            }
-                        } else {
+                        // ===== 로그인 =====
+                        setDebugInfo('사용자 정보 확인 중...');
+                        
+                        const userResult = await Storage.get(`user:${cleanUsername}`, true);
+                        
+                        if (!userResult || !userResult.value) {
                             setError('존재하지 않는 아이디입니다.');
+                            setLoading(false);
+                            return;
                         }
-                    } else {
-                        // 회원가입
-                        if (password !== confirmPassword) {
+
+                        const userData = JSON.parse(userResult.value);
+                        const hashedPassword = await hashPassword(cleanPassword, userData.salt);
+
+                        if (userData.password !== hashedPassword) {
                             setError('비밀번호가 일치하지 않습니다.');
                             setLoading(false);
                             return;
                         }
 
-                        // 기존 사용자 확인
-                        let userExists = false;
-                        try {
-                            const existingUser = await window.storage.get(`user:${username}`, true);
-                            if (existingUser && existingUser.value) {
-                                userExists = true;
-                            }
-                        } catch (err) {
-                            // 사용자가 없으면 정상
-                            userExists = false;
+                        // 로그인 성공
+                        setDebugInfo('로그인 성공!');
+                        onLogin(cleanUsername);
+                        
+                    } else {
+                        // ===== 회원가입 =====
+                        
+                        // 비밀번호 확인
+                        if (cleanPassword !== confirmPassword) {
+                            setError('비밀번호가 일치하지 않습니다.');
+                            setLoading(false);
+                            return;
                         }
 
-                        if (userExists) {
+                        setDebugInfo('중복 확인 중...');
+                        
+                        // 중복 확인
+                        const existingUser = await Storage.get(`user:${cleanUsername}`, true);
+                        if (existingUser && existingUser.value) {
                             setError('이미 존재하는 아이디입니다.');
                             setLoading(false);
                             return;
                         }
 
+                        setDebugInfo('계정 생성 중...');
+
+                        // Salt 생성
+                        const salt = Math.random().toString(36).substring(2, 15);
+                        const hashedPassword = await hashPassword(cleanPassword, salt);
+
                         const userData = {
-                            username,
-                            password,
-                            joinedAt: new Date().toISOString()
+                            username: cleanUsername,
+                            password: hashedPassword,
+                            salt: salt,
+                            createdAt: new Date().toISOString()
                         };
 
-                        const result = await window.storage.set(`user:${username}`, JSON.stringify(userData), true);
-                        
-                        if (result) {
-                            alert('✅ 회원가입이 완료되었습니다!');
-                            setIsLogin(true);
-                            setPassword('');
-                            setConfirmPassword('');
-                        } else {
-                            setError('회원가입 중 오류가 발생했습니다.');
+                        // 저장 (재시도 포함)
+                        const saveResult = await Storage.set(
+                            `user:${cleanUsername}`, 
+                            JSON.stringify(userData), 
+                            true,
+                            5 // 5번 재시도
+                        );
+
+                        if (!saveResult) {
+                            throw new Error('저장 실패');
                         }
+
+                        setDebugInfo('가입 완료 확인 중...');
+                        
+                        // 저장 확인
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        const verifyResult = await Storage.get(`user:${cleanUsername}`, true);
+                        
+                        if (!verifyResult || !verifyResult.value) {
+                            throw new Error('저장 검증 실패');
+                        }
+
+                        // 회원가입 성공
+                        alert('✅ 회원가입이 완료되었습니다!\n이제 로그인해주세요.');
+                        setIsLogin(true);
+                        setPassword('');
+                        setConfirmPassword('');
+                        setDebugInfo('');
                     }
-                } catch (err) {
-                    console.error('인증 오류:', err);
-                    if (isLogin) {
-                        setError('존재하지 않는 아이디입니다.');
-                    } else {
-                        setError('회원가입 중 오류가 발생했습니다. 다시 시도해주세요.');
-                    }
+                } catch (error) {
+                    console.error('인증 오류:', error);
+                    setError(`오류가 발생했습니다: ${error.message}`);
+                    setDebugInfo('');
+                } finally {
+                    setLoading(false);
                 }
-                
-                setLoading(false);
             };
 
             return (
-                <div style={{
+                <div className="fade-in" style={{
                     background: 'white',
-                    borderRadius: '16px',
-                    padding: '40px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-                    maxWidth: '420px',
+                    borderRadius: '20px',
+                    padding: '50px',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+                    maxWidth: '450px',
                     margin: '0 auto',
-                    border: '1px solid #e5e7eb'
+                    border: '1px solid #e8e8e8'
                 }}>
-                    <h1 style={{
-                        textAlign: 'center',
-                        color: '#111827',
-                        marginBottom: '8px',
-                        fontSize: '28px',
-                        fontWeight: '700'
-                    }}>
-                        💬 채팅
-                    </h1>
-                    <p style={{
-                        textAlign: 'center',
-                        color: '#6b7280',
-                        marginBottom: '30px',
-                        fontSize: '14px'
-                    }}>
-                        {isLogin ? '계정에 로그인하세요' : '새 계정을 만드세요'}
-                    </p>
+                    <div style={{ textAlign: 'center', marginBottom: '35px' }}>
+                        <div style={{
+                            fontSize: '48px',
+                            marginBottom: '10px'
+                        }}>💬</div>
+                        <h1 style={{
+                            color: '#1a1a2e',
+                            marginBottom: '8px',
+                            fontSize: '32px',
+                            fontWeight: '700'
+                        }}>
+                            보안 채팅
+                        </h1>
+                        <p style={{
+                            color: '#666',
+                            fontSize: '14px'
+                        }}>
+                            {isLogin ? '계정에 로그인하세요' : '새 계정을 만드세요'}
+                        </p>
+                    </div>
 
                     <div style={{
                         display: 'flex',
                         marginBottom: '30px',
-                        borderRadius: '8px',
+                        borderRadius: '12px',
                         overflow: 'hidden',
-                        background: '#f3f4f6',
-                        padding: '4px'
+                        background: '#f5f5f5',
+                        padding: '4px',
+                        border: '1px solid #e0e0e0'
                     }}>
                         <button
+                            type="button"
                             onClick={() => {
                                 setIsLogin(true);
                                 setError('');
+                                setDebugInfo('');
                             }}
                             style={{
                                 flex: 1,
-                                padding: '12px',
+                                padding: '14px',
                                 border: 'none',
                                 background: isLogin ? 'white' : 'transparent',
-                                color: isLogin ? '#111827' : '#6b7280',
-                                fontSize: '14px',
+                                color: isLogin ? '#1a1a2e' : '#888',
+                                fontSize: '15px',
                                 fontWeight: '600',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                borderRadius: '6px',
-                                boxShadow: isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                                borderRadius: '8px',
+                                boxShadow: isLogin ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
                             }}
                         >
                             로그인
                         </button>
                         <button
+                            type="button"
                             onClick={() => {
                                 setIsLogin(false);
                                 setError('');
+                                setDebugInfo('');
                             }}
                             style={{
                                 flex: 1,
-                                padding: '12px',
+                                padding: '14px',
                                 border: 'none',
                                 background: !isLogin ? 'white' : 'transparent',
-                                color: !isLogin ? '#111827' : '#6b7280',
-                                fontSize: '14px',
+                                color: !isLogin ? '#1a1a2e' : '#888',
+                                fontSize: '15px',
                                 fontWeight: '600',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                borderRadius: '6px',
-                                boxShadow: !isLogin ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                                borderRadius: '8px',
+                                boxShadow: !isLogin ? '0 2px 8px rgba(0,0,0,0.08)' : 'none'
                             }}
                         >
                             회원가입
@@ -295,109 +449,127 @@
                     </div>
 
                     <form onSubmit={handleSubmit}>
-                        <div style={{ marginBottom: '16px' }}>
+                        <div style={{ marginBottom: '20px' }}>
                             <label style={{
                                 display: 'block',
                                 marginBottom: '8px',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: '#374151'
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: '#333'
                             }}>
                                 아이디
                             </label>
                             <input
                                 type="text"
-                                placeholder="3글자 이상 입력"
+                                placeholder="3-20자 (영문, 숫자, 한글, _ 가능)"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
-                                    padding: '12px 14px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '8px',
+                                    padding: '14px 16px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '10px',
                                     fontSize: '15px',
                                     outline: 'none',
-                                    transition: 'border 0.2s',
-                                    background: 'white'
+                                    transition: 'all 0.2s',
+                                    background: loading ? '#f5f5f5' : 'white'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                             />
                         </div>
 
-                        <div style={{ marginBottom: '16px' }}>
+                        <div style={{ marginBottom: '20px' }}>
                             <label style={{
                                 display: 'block',
                                 marginBottom: '8px',
-                                fontSize: '13px',
-                                fontWeight: '500',
-                                color: '#374151'
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                color: '#333'
                             }}>
                                 비밀번호
                             </label>
                             <input
                                 type="password"
-                                placeholder="4글자 이상 입력"
+                                placeholder="6자 이상 (영문+숫자 포함)"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                disabled={loading}
                                 style={{
                                     width: '100%',
-                                    padding: '12px 14px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '8px',
+                                    padding: '14px 16px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '10px',
                                     fontSize: '15px',
                                     outline: 'none',
-                                    transition: 'border 0.2s',
-                                    background: 'white'
+                                    transition: 'all 0.2s',
+                                    background: loading ? '#f5f5f5' : 'white'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                             />
                         </div>
 
                         {!isLogin && (
-                            <div style={{ marginBottom: '16px' }}>
+                            <div style={{ marginBottom: '20px' }}>
                                 <label style={{
                                     display: 'block',
                                     marginBottom: '8px',
-                                    fontSize: '13px',
-                                    fontWeight: '500',
-                                    color: '#374151'
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    color: '#333'
                                 }}>
                                     비밀번호 확인
                                 </label>
                                 <input
                                     type="password"
-                                    placeholder="비밀번호 재입력"
+                                    placeholder="비밀번호를 다시 입력하세요"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
+                                    disabled={loading}
                                     style={{
                                         width: '100%',
-                                        padding: '12px 14px',
-                                        border: '1px solid #d1d5db',
-                                        borderRadius: '8px',
+                                        padding: '14px 16px',
+                                        border: '2px solid #e0e0e0',
+                                        borderRadius: '10px',
                                         fontSize: '15px',
                                         outline: 'none',
-                                        transition: 'border 0.2s',
-                                        background: 'white'
+                                        transition: 'all 0.2s',
+                                        background: loading ? '#f5f5f5' : 'white'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                    onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                    onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                                 />
                             </div>
                         )}
 
                         {error && (
                             <div style={{
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                marginBottom: '16px',
-                                fontSize: '13px',
-                                border: '1px solid #fecaca'
+                                background: '#fff5f5',
+                                color: '#c53030',
+                                padding: '14px',
+                                borderRadius: '10px',
+                                marginBottom: '20px',
+                                fontSize: '14px',
+                                border: '1px solid #feb2b2',
+                                fontWeight: '500'
                             }}>
-                                {error}
+                                ⚠️ {error}
+                            </div>
+                        )}
+
+                        {debugInfo && (
+                            <div style={{
+                                background: '#f0f9ff',
+                                color: '#0369a1',
+                                padding: '14px',
+                                borderRadius: '10px',
+                                marginBottom: '20px',
+                                fontSize: '14px',
+                                border: '1px solid #bae6fd'
+                            }}>
+                                ℹ️ {debugInfo}
                             </div>
                         )}
 
@@ -406,49 +578,78 @@
                             disabled={loading}
                             style={{
                                 width: '100%',
-                                padding: '14px',
-                                background: loading ? '#9ca3af' : '#6366f1',
+                                padding: '16px',
+                                background: loading ? '#cbd5e0' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                                 color: 'white',
                                 border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '15px',
-                                fontWeight: '600',
+                                borderRadius: '10px',
+                                fontSize: '16px',
+                                fontWeight: '700',
                                 cursor: loading ? 'not-allowed' : 'pointer',
-                                transition: 'background 0.2s',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                transition: 'all 0.2s',
+                                boxShadow: loading ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)'
                             }}
                             onMouseEnter={(e) => {
-                                if (!loading) e.target.style.background = '#4f46e5';
+                                if (!loading) e.target.style.transform = 'translateY(-2px)';
                             }}
                             onMouseLeave={(e) => {
-                                if (!loading) e.target.style.background = '#6366f1';
+                                if (!loading) e.target.style.transform = 'translateY(0)';
                             }}
                         >
                             {loading ? '처리중...' : (isLogin ? '로그인' : '회원가입')}
                         </button>
+
+                        {!isLogin && (
+                            <div style={{
+                                marginTop: '20px',
+                                padding: '12px',
+                                background: '#f7fafc',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                color: '#4a5568',
+                                lineHeight: '1.6'
+                            }}>
+                                <strong>보안 정책:</strong><br/>
+                                • 비밀번호는 SHA-256으로 해시화됩니다<br/>
+                                • XSS 공격 방지 필터 적용<br/>
+                                • 입력값 검증 및 새니타이징<br/>
+                                • 욕설 필터 자동 적용
+                            </div>
+                        )}
                     </form>
                 </div>
             );
         }
 
-        // 채팅 컴포넌트
+        // ==================== 채팅 컴포넌트 ====================
+        
         function ChatScreen({ username, onLogout }) {
             const [messages, setMessages] = useState([]);
             const [inputMessage, setInputMessage] = useState('');
             const [onlineUsers, setOnlineUsers] = useState(new Set());
+            const [sendingMessage, setSendingMessage] = useState(false);
             const messagesEndRef = useRef(null);
-            const lastMessageId = useRef(0);
+            const messageLoadInterval = useRef(null);
+            const onlineUpdateInterval = useRef(null);
 
             useEffect(() => {
                 loadMessages();
-                const interval = setInterval(loadMessages, 1000);
-                return () => clearInterval(interval);
+                messageLoadInterval.current = setInterval(loadMessages, 1500);
+                return () => {
+                    if (messageLoadInterval.current) {
+                        clearInterval(messageLoadInterval.current);
+                    }
+                };
             }, []);
 
             useEffect(() => {
                 updateOnlineStatus();
-                const interval = setInterval(updateOnlineStatus, 5000);
-                return () => clearInterval(interval);
+                onlineUpdateInterval.current = setInterval(updateOnlineStatus, 5000);
+                return () => {
+                    if (onlineUpdateInterval.current) {
+                        clearInterval(onlineUpdateInterval.current);
+                    }
+                };
             }, [username]);
 
             useEffect(() => {
@@ -456,118 +657,189 @@
             }, [messages]);
 
             const loadMessages = async () => {
-                try {
-                    const result = await window.storage.get('chat:messages', true);
-                    if (result && result.value) {
+                const result = await Storage.get('chat:messages', true);
+                if (result && result.value) {
+                    try {
                         const msgs = JSON.parse(result.value);
-                        setMessages(msgs);
-                        if (msgs.length > 0) {
-                            lastMessageId.current = msgs[msgs.length - 1].id;
+                        if (Array.isArray(msgs)) {
+                            setMessages(msgs);
                         }
+                    } catch (error) {
+                        console.error('메시지 파싱 오류:', error);
                     }
-                } catch (err) {
-                    console.log('메시지 로드 대기중...');
                 }
             };
 
             const updateOnlineStatus = async () => {
                 const now = Date.now();
-                await window.storage.set(`online:${username}`, now.toString(), true);
+                await Storage.set(`online:${username}`, now.toString(), true);
 
-                try {
-                    const keys = await window.storage.list('online:', true);
-                    if (keys && keys.keys) {
-                        const users = new Set();
-                        for (const key of keys.keys) {
-                            try {
-                                const result = await window.storage.get(key, true);
-                                if (result && result.value) {
-                                    const lastSeen = parseInt(result.value);
-                                    if (now - lastSeen < 10000) {
-                                        const user = key.replace('online:', '');
-                                        users.add(user);
-                                    }
-                                }
-                            } catch (err) {
-                                // 에러 무시
+                const listResult = await Storage.list('online:', true);
+                if (listResult && listResult.keys) {
+                    const users = new Set();
+                    for (const key of listResult.keys) {
+                        const result = await Storage.get(key, true);
+                        if (result && result.value) {
+                            const lastSeen = parseInt(result.value);
+                            if (now - lastSeen < 15000) { // 15초 이내
+                                const user = key.replace('online:', '');
+                                users.add(user);
                             }
                         }
-                        setOnlineUsers(users);
                     }
-                } catch (err) {
-                    console.log('온라인 사용자 업데이트 중...');
+                    setOnlineUsers(users);
                 }
             };
 
             const sendMessage = async (e) => {
                 e.preventDefault();
-                if (!inputMessage.trim()) return;
-
-                const filteredMessage = filterProfanity(inputMessage);
-                const newMessage = {
-                    id: Date.now(),
-                    username,
-                    text: filteredMessage,
-                    timestamp: new Date().toISOString(),
-                    isFiltered: filteredMessage !== inputMessage
-                };
-
-                let currentMessages = messages;
-                try {
-                    const result = await window.storage.get('chat:messages', true);
-                    if (result && result.value) {
-                        currentMessages = JSON.parse(result.value);
-                    }
-                } catch (err) {
-                    currentMessages = [];
-                }
-
-                const updatedMessages = [...currentMessages, newMessage];
                 
-                if (updatedMessages.length > 100) {
-                    updatedMessages.shift();
+                const trimmedMessage = inputMessage.trim();
+                if (!trimmedMessage || sendingMessage) return;
+
+                if (trimmedMessage.length > 500) {
+                    alert('메시지는 500자를 초과할 수 없습니다.');
+                    return;
                 }
 
-                await window.storage.set('chat:messages', JSON.stringify(updatedMessages), true);
-                setMessages(updatedMessages);
-                setInputMessage('');
+                setSendingMessage(true);
+
+                try {
+                    const filteredMessage = filterProfanity(trimmedMessage);
+                    const isFiltered = filteredMessage !== escapeHtml(trimmedMessage);
+                    
+                    const newMessage = {
+                        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        username: escapeHtml(username),
+                        text: filteredMessage,
+                        timestamp: new Date().toISOString(),
+                        isFiltered: isFiltered
+                    };
+
+                    // 현재 메시지 불러오기
+                    let currentMessages = [];
+                    const result = await Storage.get('chat:messages', true);
+                    if (result && result.value) {
+                        try {
+                            currentMessages = JSON.parse(result.value);
+                            if (!Array.isArray(currentMessages)) {
+                                currentMessages = [];
+                            }
+                        } catch (error) {
+                            currentMessages = [];
+                        }
+                    }
+
+                    const updatedMessages = [...currentMessages, newMessage];
+                    
+                    // 최근 100개만 유지
+                    if (updatedMessages.length > 100) {
+                        updatedMessages.splice(0, updatedMessages.length - 100);
+                    }
+
+                    await Storage.set('chat:messages', JSON.stringify(updatedMessages), true, 5);
+                    
+                    setMessages(updatedMessages);
+                    setInputMessage('');
+                    
+                } catch (error) {
+                    console.error('메시지 전송 오류:', error);
+                    alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
+                } finally {
+                    setSendingMessage(false);
+                }
             };
 
             const formatTime = (timestamp) => {
-                const date = new Date(timestamp);
-                return date.toLocaleTimeString('ko-KR', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                });
+                try {
+                    const date = new Date(timestamp);
+                    return date.toLocaleTimeString('ko-KR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } catch (error) {
+                    return '';
+                }
+            };
+
+            const handleLogout = async () => {
+                await Storage.delete(`online:${username}`, true);
+                onLogout();
             };
 
             return (
-                <div style={{
+                <div className="fade-in" style={{
                     display: 'flex',
                     gap: '20px',
-                    height: '600px'
+                    height: '650px'
                 }}>
                     {/* 사이드바 */}
                     <div style={{
-                        width: '260px',
+                        width: '280px',
                         background: 'white',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                        borderRadius: '20px',
+                        padding: '28px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
-                        border: '1px solid #e5e7eb'
+                        border: '1px solid #e8e8e8'
                     }}>
                         <div style={{
-                            marginBottom: '24px',
-                            paddingBottom: '24px',
-                            borderBottom: '1px solid #e5e7eb'
+                            marginBottom: '28px',
+                            paddingBottom: '28px',
+                            borderBottom: '2px solid #f0f0f0'
                         }}>
                             <div style={{
-                                fontSize: '16px',
-                                fontWeight: '600',
-                                color: '#111827',
-                                marginBottom: '12px',
+                                fontSize: '18px',
+                                fontWeight: '700',
+                                color: '#1a1a2e',
+                                marginBottom: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                            }}>
+                                <div style={{
+                                    width: '12px',
+                                    height: '12px',
+                                    borderRadius: '50%',
+                                    background: '#10b981',
+                                    boxShadow: '0 0 0 3px rgba(16, 185, 129, 0.2)'
+                                }}></div>
+                                {username}
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#f7fafc',
+                                    color: '#4a5568',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '10px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.target.style.background = '#edf2f7';
+                                    e.target.style.borderColor = '#cbd5e0';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.background = '#f7fafc';
+                                    e.target.style.borderColor = '#e2e8f0';
+                                }}
+                            >
+                                로그아웃
+                            </button>
+                        </div>
+
+                        <div>
+                            <div style={{
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                marginBottom: '18px',
+                                color: '#2d3748',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px'
@@ -578,67 +850,25 @@
                                     borderRadius: '50%',
                                     background: '#10b981'
                                 }}></div>
-                                {username}
-                            </div>
-                            <button
-                                onClick={onLogout}
-                                style={{
-                                    width: '100%',
-                                    padding: '10px',
-                                    background: '#f3f4f6',
-                                    color: '#374151',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '13px',
-                                    fontWeight: '500',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.target.style.background = '#e5e7eb';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.target.style.background = '#f3f4f6';
-                                }}
-                            >
-                                로그아웃
-                            </button>
-                        </div>
-
-                        <div>
-                            <div style={{
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                marginBottom: '16px',
-                                color: '#374151',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}>
-                                <div style={{
-                                    width: '8px',
-                                    height: '8px',
-                                    borderRadius: '50%',
-                                    background: '#10b981'
-                                }}></div>
                                 온라인 ({onlineUsers.size})
                             </div>
                             <div style={{
-                                maxHeight: '400px',
+                                maxHeight: '450px',
                                 overflowY: 'auto'
                             }}>
-                                {Array.from(onlineUsers).map(user => (
+                                {Array.from(onlineUsers).sort().map(user => (
                                     <div
                                         key={user}
                                         style={{
-                                            padding: '10px 12px',
-                                            background: user === username ? '#eff6ff' : '#f9fafb',
-                                            borderRadius: '8px',
-                                            marginBottom: '8px',
-                                            fontSize: '13px',
-                                            color: '#111827',
-                                            fontWeight: user === username ? '500' : '400',
-                                            border: '1px solid ' + (user === username ? '#bfdbfe' : '#f3f4f6')
+                                            padding: '12px 14px',
+                                            background: user === username ? '#f0f9ff' : '#f9fafb',
+                                            borderRadius: '10px',
+                                            marginBottom: '10px',
+                                            fontSize: '14px',
+                                            color: '#1a1a2e',
+                                            fontWeight: user === username ? '600' : '400',
+                                            border: '1px solid ' + (user === username ? '#bae6fd' : '#f3f4f6'),
+                                            transition: 'all 0.2s'
                                         }}
                                     >
                                         {user === username ? `${user} (나)` : user}
@@ -652,41 +882,51 @@
                     <div style={{
                         flex: 1,
                         background: 'white',
-                        borderRadius: '16px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                        borderRadius: '20px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        border: '1px solid #e5e7eb'
+                        border: '1px solid #e8e8e8'
                     }}>
                         {/* 헤더 */}
                         <div style={{
-                            padding: '20px 24px',
-                            background: '#6366f1',
+                            padding: '24px 28px',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                             color: 'white',
-                            fontSize: '18px',
-                            fontWeight: '600',
+                            fontSize: '20px',
+                            fontWeight: '700',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '10px'
+                            gap: '12px',
+                            boxShadow: '0 2px 10px rgba(102, 126, 234, 0.3)'
                         }}>
                             💬 전체 채팅방
+                            <div style={{
+                                marginLeft: 'auto',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                opacity: 0.9
+                            }}>
+                                {onlineUsers.size}명 접속중
+                            </div>
                         </div>
 
                         {/* 메시지 목록 */}
                         <div style={{
                             flex: 1,
                             overflowY: 'auto',
-                            padding: '24px',
+                            padding: '28px',
                             background: '#fafafa'
                         }}>
                             {messages.length === 0 ? (
                                 <div style={{
                                     textAlign: 'center',
-                                    color: '#9ca3af',
-                                    marginTop: '50px',
-                                    fontSize: '14px'
+                                    color: '#a0aec0',
+                                    marginTop: '80px',
+                                    fontSize: '15px'
                                 }}>
+                                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>💭</div>
                                     메시지를 입력해서 대화를 시작하세요
                                 </div>
                             ) : (
@@ -694,52 +934,56 @@
                                     <div
                                         key={msg.id}
                                         style={{
-                                            marginBottom: '16px',
+                                            marginBottom: '18px',
                                             display: 'flex',
                                             justifyContent: msg.username === username ? 'flex-end' : 'flex-start'
                                         }}
                                     >
                                         <div style={{
-                                            maxWidth: '70%'
+                                            maxWidth: '65%'
                                         }}>
                                             {msg.username !== username && (
                                                 <div style={{
-                                                    fontSize: '12px',
-                                                    color: '#6366f1',
-                                                    fontWeight: '600',
+                                                    fontSize: '13px',
+                                                    color: '#667eea',
+                                                    fontWeight: '700',
                                                     marginBottom: '6px',
-                                                    marginLeft: '4px'
+                                                    marginLeft: '6px'
                                                 }}>
                                                     {msg.username}
                                                 </div>
                                             )}
                                             <div style={{
                                                 background: msg.username === username 
-                                                    ? '#6366f1' 
+                                                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
                                                     : 'white',
-                                                color: msg.username === username ? 'white' : '#111827',
-                                                padding: '12px 16px',
-                                                borderRadius: '12px',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                                color: msg.username === username ? 'white' : '#1a1a2e',
+                                                padding: '14px 18px',
+                                                borderRadius: '14px',
+                                                boxShadow: msg.username === username 
+                                                    ? '0 4px 12px rgba(102, 126, 234, 0.3)' 
+                                                    : '0 2px 8px rgba(0,0,0,0.08)',
                                                 wordWrap: 'break-word',
-                                                border: msg.username === username ? 'none' : '1px solid #e5e7eb'
-                                            }}>
-                                                {msg.text}
-                                                {msg.isFiltered && (
-                                                    <div style={{
-                                                        fontSize: '10px',
-                                                        marginTop: '6px',
-                                                        opacity: 0.8
-                                                    }}>
-                                                        ⚠️ 부적절한 언어 필터링됨
-                                                    </div>
-                                                )}
+                                                border: msg.username === username ? 'none' : '1px solid #e8e8e8',
+                                                lineHeight: '1.5'
+                                            }} dangerouslySetInnerHTML={{ __html: msg.text }}>
                                             </div>
+                                            {msg.isFiltered && (
+                                                <div style={{
+                                                    fontSize: '11px',
+                                                    marginTop: '6px',
+                                                    marginLeft: '6px',
+                                                    color: '#f59e0b',
+                                                    fontWeight: '500'
+                                                }}>
+                                                    ⚠️ 부적절한 언어가 필터링되었습니다
+                                                </div>
+                                            )}
                                             <div style={{
                                                 fontSize: '11px',
-                                                color: '#9ca3af',
-                                                marginTop: '4px',
-                                                marginLeft: '4px',
+                                                color: '#a0aec0',
+                                                marginTop: '5px',
+                                                marginLeft: '6px',
                                                 textAlign: msg.username === username ? 'right' : 'left'
                                             }}>
                                                 {formatTime(msg.timestamp)}
@@ -755,10 +999,10 @@
                         <form
                             onSubmit={sendMessage}
                             style={{
-                                padding: '20px 24px',
-                                borderTop: '1px solid #e5e7eb',
+                                padding: '24px 28px',
+                                borderTop: '2px solid #f0f0f0',
                                 display: 'flex',
-                                gap: '12px',
+                                gap: '14px',
                                 background: 'white'
                             }}
                         >
@@ -766,36 +1010,51 @@
                                 type="text"
                                 value={inputMessage}
                                 onChange={(e) => setInputMessage(e.target.value)}
-                                placeholder="메시지를 입력하세요..."
+                                placeholder="메시지를 입력하세요... (최대 500자)"
+                                disabled={sendingMessage}
+                                maxLength={500}
                                 style={{
                                     flex: 1,
-                                    padding: '12px 16px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '12px',
-                                    fontSize: '14px',
+                                    padding: '14px 18px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '14px',
+                                    fontSize: '15px',
                                     outline: 'none',
-                                    transition: 'border 0.2s'
+                                    transition: 'all 0.2s',
+                                    background: sendingMessage ? '#f5f5f5' : 'white'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-                                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                             />
                             <button
                                 type="submit"
+                                disabled={sendingMessage || !inputMessage.trim()}
                                 style={{
-                                    padding: '12px 28px',
-                                    background: '#6366f1',
+                                    padding: '14px 32px',
+                                    background: (sendingMessage || !inputMessage.trim()) 
+                                        ? '#cbd5e0' 
+                                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                                     color: 'white',
                                     border: 'none',
-                                    borderRadius: '12px',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s'
+                                    borderRadius: '14px',
+                                    fontSize: '15px',
+                                    fontWeight: '700',
+                                    cursor: (sendingMessage || !inputMessage.trim()) ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s',
+                                    boxShadow: (sendingMessage || !inputMessage.trim()) 
+                                        ? 'none' 
+                                        : '0 4px 15px rgba(102, 126, 234, 0.4)'
                                 }}
-                                onMouseEnter={(e) => e.target.style.background = '#4f46e5'}
-                                onMouseLeave={(e) => e.target.style.background = '#6366f1'}
+                                onMouseEnter={(e) => {
+                                    if (!sendingMessage && inputMessage.trim()) {
+                                        e.target.style.transform = 'scale(1.05)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                }}
                             >
-                                전송
+                                {sendingMessage ? '전송중...' : '전송'}
                             </button>
                         </form>
                     </div>
@@ -803,7 +1062,8 @@
             );
         }
 
-        // 메인 앱
+        // ==================== 메인 앱 ====================
+        
         function App() {
             const [currentUser, setCurrentUser] = useState(null);
 
@@ -811,14 +1071,7 @@
                 setCurrentUser(username);
             };
 
-            const handleLogout = async () => {
-                if (currentUser) {
-                    try {
-                        await window.storage.delete(`online:${currentUser}`, true);
-                    } catch (err) {
-                        console.log('로그아웃 처리 중...');
-                    }
-                }
+            const handleLogout = () => {
                 setCurrentUser(null);
             };
 
