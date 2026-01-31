@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D FPS 게임</title>
+    <title>온라인 채팅</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -11,507 +14,642 @@
             box-sizing: border-box;
         }
         body {
-            overflow: hidden;
-            font-family: 'Arial', sans-serif;
-            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        #gameCanvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-        #ui {
-            position: absolute;
-            top: 0;
-            left: 0;
+        #root {
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            color: white;
-            font-size: 20px;
-        }
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 20px;
-            height: 20px;
-        }
-        #crosshair::before,
-        #crosshair::after {
-            content: '';
-            position: absolute;
-            background: #00ff00;
-        }
-        #crosshair::before {
-            width: 2px;
-            height: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        #crosshair::after {
-            width: 20px;
-            height: 2px;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-        #stats {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 5px;
-            border: 2px solid #00ff00;
-        }
-        #ammo {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px 25px;
-            border-radius: 5px;
-            font-size: 24px;
-            border: 2px solid #00ff00;
-        }
-        #instructions {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            pointer-events: all;
-            border: 3px solid #00ff00;
-        }
-        #instructions h2 {
-            margin-bottom: 20px;
-            color: #00ff00;
-        }
-        #instructions button {
-            margin-top: 20px;
-            padding: 15px 30px;
-            font-size: 18px;
-            background: #00ff00;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        #instructions button:hover {
-            background: #00dd00;
-        }
-        .hidden {
-            display: none !important;
-        }
-        #gameOver {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95);
-            padding: 40px;
-            border-radius: 10px;
-            text-align: center;
-            pointer-events: all;
-            border: 3px solid #ff0000;
-        }
-        #gameOver h2 {
-            color: #ff0000;
-            margin-bottom: 20px;
-            font-size: 36px;
-        }
-        #gameOver button {
-            margin-top: 20px;
-            padding: 15px 30px;
-            font-size: 18px;
-            background: #00ff00;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
+            max-width: 1200px;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div id="crosshair"></div>
-        <div id="stats">
-            <div>체력: <span id="health">100</span></div>
-            <div>점수: <span id="score">0</span></div>
-            <div>적 처치: <span id="kills">0</span></div>
-        </div>
-        <div id="ammo">탄약: <span id="ammoCount">30</span> / ∞</div>
-        <div id="instructions">
-            <h2>3D FPS 게임</h2>
-            <p><strong>WASD</strong> - 이동</p>
-            <p><strong>마우스</strong> - 시점 조작</p>
-            <p><strong>클릭</strong> - 발사</p>
-            <p><strong>R</strong> - 재장전</p>
-            <p><strong>Shift</strong> - 달리기</p>
-            <p style="margin-top: 20px;">적을 처치하고 생존하세요!</p>
-            <button id="startButton">게임 시작</button>
-        </div>
-        <div id="gameOver" class="hidden">
-            <h2>게임 오버!</h2>
-            <p style="font-size: 24px; margin: 20px 0;">최종 점수: <span id="finalScore">0</span></p>
-            <p style="font-size: 20px;">적 처치: <span id="finalKills">0</span></p>
-            <button id="restartButton">다시 시작</button>
-        </div>
-    </div>
+    <div id="root"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // 게임 변수
-        let scene, camera, renderer;
-        let player = {
-            position: new THREE.Vector3(0, 1.6, 0),
-            velocity: new THREE.Vector3(0, 0, 0),
-            direction: new THREE.Vector3(0, 0, 0),
-            rotation: { x: 0, y: 0 },
-            health: 100,
-            score: 0,
-            kills: 0
-        };
-        let enemies = [];
-        let bullets = [];
-        let keys = {};
-        let mouseMovement = { x: 0, y: 0 };
-        let isPointerLocked = false;
-        let gameStarted = false;
-        let gameOver = false;
-        
-        // 무기 설정
-        let weapon = {
-            ammo: 30,
-            maxAmmo: 30,
-            reloading: false,
-            fireRate: 100,
-            lastShot: 0
-        };
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-        // 씬 초기화
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb);
-            scene.fog = new THREE.Fog(0x87ceeb, 0, 100);
+        // 욕설 필터 리스트
+        const profanityList = [
+            '시발', '씨발', '개새', '병신', '지랄', '좆', '씹', 'nigga', 
+            '미친', '또라이', '염병', '엿', '개자식', '새끼', '년', 
+            '쓰레기', '개XX', '존나', 'fuck', 'shit', 'bitch', 'ass',
+            '꺼져', '죽어', '멍청이', '바보', '등신', '놈', '뇬',
+            '애미', '애비', '호로', '창녀', '썅', '니애미', '느금'
+        ];
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.copy(player.position);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            document.body.appendChild(renderer.domElement);
-
-            // 조명
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(50, 100, 50);
-            directionalLight.castShadow = true;
-            directionalLight.shadow.mapSize.width = 2048;
-            directionalLight.shadow.mapSize.height = 2048;
-            directionalLight.shadow.camera.far = 200;
-            directionalLight.shadow.camera.left = -50;
-            directionalLight.shadow.camera.right = 50;
-            directionalLight.shadow.camera.top = 50;
-            directionalLight.shadow.camera.bottom = -50;
-            scene.add(directionalLight);
-
-            // 바닥
-            const floorGeometry = new THREE.PlaneGeometry(200, 200);
-            const floorMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x228b22,
-                roughness: 0.8,
-                metalness: 0.2
+        // 욕설 필터 함수
+        function filterProfanity(text) {
+            let filtered = text;
+            profanityList.forEach(word => {
+                const regex = new RegExp(word, 'gi');
+                filtered = filtered.replace(regex, (match) => '*'.repeat(match.length));
             });
-            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            floor.rotation.x = -Math.PI / 2;
-            floor.receiveShadow = true;
-            scene.add(floor);
-
-            // 장애물 생성
-            createObstacles();
-
-            // 이벤트 리스너
-            document.addEventListener('keydown', onKeyDown);
-            document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('click', shoot);
-            
-            document.getElementById('startButton').addEventListener('click', startGame);
-            document.getElementById('restartButton').addEventListener('click', restartGame);
-
-            window.addEventListener('resize', onWindowResize);
+            return filtered;
         }
 
-        function createObstacles() {
-            const obstacleGeometry = new THREE.BoxGeometry(3, 3, 3);
-            const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+        // 로그인/회원가입 컴포넌트
+        function AuthScreen({ onLogin }) {
+            const [isLogin, setIsLogin] = useState(true);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState('');
 
-            for (let i = 0; i < 15; i++) {
-                const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-                obstacle.position.set(
-                    Math.random() * 80 - 40,
-                    1.5,
-                    Math.random() * 80 - 40
-                );
-                obstacle.castShadow = true;
-                obstacle.receiveShadow = true;
-                scene.add(obstacle);
-            }
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+
+                if (!username.trim() || !password.trim()) {
+                    setError('아이디와 비밀번호를 입력해주세요.');
+                    return;
+                }
+
+                if (username.length < 3) {
+                    setError('아이디는 3글자 이상이어야 합니다.');
+                    return;
+                }
+
+                if (password.length < 4) {
+                    setError('비밀번호는 4글자 이상이어야 합니다.');
+                    return;
+                }
+
+                if (isLogin) {
+                    // 로그인
+                    try {
+                        const result = await window.storage.get(`user:${username}`, true);
+                        if (result && result.value) {
+                            const userData = JSON.parse(result.value);
+                            if (userData.password === password) {
+                                onLogin(username);
+                            } else {
+                                setError('비밀번호가 일치하지 않습니다.');
+                            }
+                        } else {
+                            setError('존재하지 않는 아이디입니다.');
+                        }
+                    } catch (err) {
+                        setError('존재하지 않는 아이디입니다.');
+                    }
+                } else {
+                    // 회원가입
+                    if (password !== confirmPassword) {
+                        setError('비밀번호가 일치하지 않습니다.');
+                        return;
+                    }
+
+                    try {
+                        const existingUser = await window.storage.get(`user:${username}`, true);
+                        if (existingUser) {
+                            setError('이미 존재하는 아이디입니다.');
+                            return;
+                        }
+                    } catch (err) {
+                        // 사용자가 없으면 정상 (에러 무시)
+                    }
+
+                    const userData = {
+                        username,
+                        password,
+                        joinedAt: new Date().toISOString()
+                    };
+
+                    await window.storage.set(`user:${username}`, JSON.stringify(userData), true);
+                    alert('회원가입이 완료되었습니다!');
+                    setIsLogin(true);
+                    setPassword('');
+                    setConfirmPassword('');
+                }
+            };
+
+            return (
+                <div style={{
+                    background: 'white',
+                    borderRadius: '20px',
+                    padding: '40px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                    maxWidth: '400px',
+                    margin: '0 auto'
+                }}>
+                    <h1 style={{
+                        textAlign: 'center',
+                        color: '#667eea',
+                        marginBottom: '30px',
+                        fontSize: '32px'
+                    }}>
+                        💬 온라인 채팅
+                    </h1>
+
+                    <div style={{
+                        display: 'flex',
+                        marginBottom: '30px',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        border: '2px solid #e0e0e0'
+                    }}>
+                        <button
+                            onClick={() => setIsLogin(true)}
+                            style={{
+                                flex: 1,
+                                padding: '15px',
+                                border: 'none',
+                                background: isLogin ? '#667eea' : 'white',
+                                color: isLogin ? 'white' : '#666',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s'
+                            }}
+                        >
+                            로그인
+                        </button>
+                        <button
+                            onClick={() => setIsLogin(false)}
+                            style={{
+                                flex: 1,
+                                padding: '15px',
+                                border: 'none',
+                                background: !isLogin ? '#667eea' : 'white',
+                                color: !isLogin ? 'white' : '#666',
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s'
+                            }}
+                        >
+                            회원가입
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit}>
+                        <input
+                            type="text"
+                            placeholder="아이디 (3글자 이상)"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '15px',
+                                marginBottom: '15px',
+                                border: '2px solid #e0e0e0',
+                                borderRadius: '10px',
+                                fontSize: '16px',
+                                outline: 'none',
+                                transition: 'border 0.3s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                            onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                        />
+
+                        <input
+                            type="password"
+                            placeholder="비밀번호 (4글자 이상)"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '15px',
+                                marginBottom: '15px',
+                                border: '2px solid #e0e0e0',
+                                borderRadius: '10px',
+                                fontSize: '16px',
+                                outline: 'none',
+                                transition: 'border 0.3s'
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                            onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                        />
+
+                        {!isLogin && (
+                            <input
+                                type="password"
+                                placeholder="비밀번호 확인"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '15px',
+                                    marginBottom: '15px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '10px',
+                                    fontSize: '16px',
+                                    outline: 'none',
+                                    transition: 'border 0.3s'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                            />
+                        )}
+
+                        {error && (
+                            <div style={{
+                                background: '#ffe0e0',
+                                color: '#d00',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                marginBottom: '15px',
+                                fontSize: '14px',
+                                textAlign: 'center'
+                            }}>
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            style={{
+                                width: '100%',
+                                padding: '15px',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '10px',
+                                fontSize: '18px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'transform 0.2s',
+                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                            }}
+                            onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                        >
+                            {isLogin ? '로그인' : '회원가입'}
+                        </button>
+                    </form>
+                </div>
+            );
         }
 
-        function startGame() {
-            document.getElementById('instructions').classList.add('hidden');
-            gameStarted = true;
-            
-            // 포인터 락
-            renderer.domElement.requestPointerLock();
-            document.addEventListener('pointerlockchange', onPointerLockChange);
-            document.addEventListener('mousemove', onMouseMove);
-            
-            spawnEnemies();
-            animate();
-        }
+        // 채팅 컴포넌트
+        function ChatScreen({ username, onLogout }) {
+            const [messages, setMessages] = useState([]);
+            const [inputMessage, setInputMessage] = useState('');
+            const [onlineUsers, setOnlineUsers] = useState(new Set());
+            const messagesEndRef = useRef(null);
+            const lastMessageId = useRef(0);
 
-        function restartGame() {
-            // 게임 상태 초기화
-            gameOver = false;
-            player.health = 100;
-            player.score = 0;
-            player.kills = 0;
-            player.position.set(0, 1.6, 0);
-            weapon.ammo = 30;
-            
-            // 적과 총알 제거
-            enemies.forEach(enemy => scene.remove(enemy.mesh));
-            bullets.forEach(bullet => scene.remove(bullet.mesh));
-            enemies = [];
-            bullets = [];
-            
-            // UI 업데이트
-            updateUI();
-            document.getElementById('gameOver').classList.add('hidden');
-            
-            // 다시 시작
-            spawnEnemies();
-            renderer.domElement.requestPointerLock();
-        }
+            // 메시지 로드
+            useEffect(() => {
+                loadMessages();
+                const interval = setInterval(loadMessages, 1000);
+                return () => clearInterval(interval);
+            }, []);
 
-        function spawnEnemies() {
-            setInterval(() => {
-                if (gameOver || !gameStarted) return;
-                
-                const enemyGeometry = new THREE.BoxGeometry(1, 2, 1);
-                const enemyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-                const enemyMesh = new THREE.Mesh(enemyGeometry, enemyMaterial);
-                
-                const angle = Math.random() * Math.PI * 2;
-                const distance = 30 + Math.random() * 20;
-                enemyMesh.position.set(
-                    Math.cos(angle) * distance,
-                    1,
-                    Math.sin(angle) * distance
-                );
-                enemyMesh.castShadow = true;
-                
-                scene.add(enemyMesh);
-                
-                enemies.push({
-                    mesh: enemyMesh,
-                    health: 100,
-                    speed: 0.02 + Math.random() * 0.01,
-                    lastAttack: 0
-                });
-            }, 2000);
-        }
+            // 온라인 사용자 업데이트
+            useEffect(() => {
+                updateOnlineStatus();
+                const interval = setInterval(updateOnlineStatus, 5000);
+                return () => clearInterval(interval);
+            }, [username]);
 
-        function onPointerLockChange() {
-            isPointerLocked = document.pointerLockElement === renderer.domElement;
-        }
+            // 자동 스크롤
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [messages]);
 
-        function onMouseMove(event) {
-            if (!isPointerLocked) return;
-
-            const sensitivity = 0.002;
-            player.rotation.y -= event.movementX * sensitivity;
-            player.rotation.x -= event.movementY * sensitivity;
-            player.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, player.rotation.x));
-        }
-
-        function onKeyDown(event) {
-            keys[event.key.toLowerCase()] = true;
-            
-            if (event.key.toLowerCase() === 'r') {
-                reload();
-            }
-        }
-
-        function onKeyUp(event) {
-            keys[event.key.toLowerCase()] = false;
-        }
-
-        function shoot() {
-            if (!isPointerLocked || gameOver || weapon.reloading) return;
-            
-            const now = Date.now();
-            if (now - weapon.lastShot < weapon.fireRate) return;
-            if (weapon.ammo <= 0) {
-                reload();
-                return;
-            }
-
-            weapon.lastShot = now;
-            weapon.ammo--;
-            updateUI();
-
-            // 총알 생성
-            const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-            const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-            const bulletMesh = new THREE.Mesh(bulletGeometry, bulletMaterial);
-            
-            bulletMesh.position.copy(camera.position);
-            scene.add(bulletMesh);
-
-            const direction = new THREE.Vector3(0, 0, -1);
-            direction.applyQuaternion(camera.quaternion);
-
-            bullets.push({
-                mesh: bulletMesh,
-                velocity: direction.multiplyScalar(1.5),
-                life: 100
-            });
-        }
-
-        function reload() {
-            if (weapon.reloading || weapon.ammo === weapon.maxAmmo) return;
-            
-            weapon.reloading = true;
-            setTimeout(() => {
-                weapon.ammo = weapon.maxAmmo;
-                weapon.reloading = false;
-                updateUI();
-            }, 1500);
-        }
-
-        function updatePlayer() {
-            const speed = keys['shift'] ? 0.15 : 0.1;
-            const direction = new THREE.Vector3();
-
-            if (keys['w']) direction.z -= 1;
-            if (keys['s']) direction.z += 1;
-            if (keys['a']) direction.x -= 1;
-            if (keys['d']) direction.x += 1;
-
-            if (direction.length() > 0) {
-                direction.normalize();
-                direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rotation.y);
-                player.position.add(direction.multiplyScalar(speed));
-            }
-
-            camera.position.copy(player.position);
-            camera.rotation.set(player.rotation.x, player.rotation.y, 0);
-        }
-
-        function updateEnemies() {
-            enemies.forEach((enemy, index) => {
-                const direction = new THREE.Vector3()
-                    .subVectors(player.position, enemy.mesh.position)
-                    .normalize();
-                
-                enemy.mesh.position.add(direction.multiplyScalar(enemy.speed));
-                enemy.mesh.lookAt(player.position);
-
-                // 플레이어 공격
-                const distance = enemy.mesh.position.distanceTo(player.position);
-                if (distance < 2) {
-                    const now = Date.now();
-                    if (now - enemy.lastAttack > 1000) {
-                        player.health -= 10;
-                        enemy.lastAttack = now;
-                        updateUI();
-                        
-                        if (player.health <= 0) {
-                            endGame();
+            const loadMessages = async () => {
+                try {
+                    const result = await window.storage.get('chat:messages', true);
+                    if (result && result.value) {
+                        const msgs = JSON.parse(result.value);
+                        setMessages(msgs);
+                        if (msgs.length > 0) {
+                            lastMessageId.current = msgs[msgs.length - 1].id;
                         }
                     }
+                } catch (err) {
+                    // 메시지가 없으면 무시
                 }
-            });
-        }
+            };
 
-        function updateBullets() {
-            bullets.forEach((bullet, bulletIndex) => {
-                bullet.mesh.position.add(bullet.velocity);
-                bullet.life--;
+            const updateOnlineStatus = async () => {
+                const now = Date.now();
+                await window.storage.set(`online:${username}`, now.toString(), true);
 
-                // 적과의 충돌 확인
-                enemies.forEach((enemy, enemyIndex) => {
-                    const distance = bullet.mesh.position.distanceTo(enemy.mesh.position);
-                    if (distance < 1) {
-                        enemy.health -= 34;
-                        scene.remove(bullet.mesh);
-                        bullets.splice(bulletIndex, 1);
-
-                        if (enemy.health <= 0) {
-                            scene.remove(enemy.mesh);
-                            enemies.splice(enemyIndex, 1);
-                            player.score += 100;
-                            player.kills++;
-                            updateUI();
+                try {
+                    const keys = await window.storage.list('online:', true);
+                    if (keys && keys.keys) {
+                        const users = new Set();
+                        for (const key of keys.keys) {
+                            try {
+                                const result = await window.storage.get(key, true);
+                                if (result && result.value) {
+                                    const lastSeen = parseInt(result.value);
+                                    if (now - lastSeen < 10000) {
+                                        const user = key.replace('online:', '');
+                                        users.add(user);
+                                    }
+                                }
+                            } catch (err) {
+                                // 에러 무시
+                            }
                         }
+                        setOnlineUsers(users);
                     }
-                });
-
-                // 수명이 다한 총알 제거
-                if (bullet.life <= 0) {
-                    scene.remove(bullet.mesh);
-                    bullets.splice(bulletIndex, 1);
+                } catch (err) {
+                    // 에러 무시
                 }
-            });
+            };
+
+            const sendMessage = async (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim()) return;
+
+                const filteredMessage = filterProfanity(inputMessage);
+                const newMessage = {
+                    id: lastMessageId.current + 1,
+                    username,
+                    text: filteredMessage,
+                    timestamp: new Date().toISOString(),
+                    isFiltered: filteredMessage !== inputMessage
+                };
+
+                const updatedMessages = [...messages, newMessage];
+                
+                // 최근 100개 메시지만 유지
+                if (updatedMessages.length > 100) {
+                    updatedMessages.shift();
+                }
+
+                await window.storage.set('chat:messages', JSON.stringify(updatedMessages), true);
+                setMessages(updatedMessages);
+                lastMessageId.current = newMessage.id;
+                setInputMessage('');
+            };
+
+            const formatTime = (timestamp) => {
+                const date = new Date(timestamp);
+                return date.toLocaleTimeString('ko-KR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            };
+
+            return (
+                <div style={{
+                    display: 'flex',
+                    gap: '20px',
+                    height: '600px'
+                }}>
+                    {/* 사이드바 */}
+                    <div style={{
+                        width: '250px',
+                        background: 'white',
+                        borderRadius: '20px',
+                        padding: '20px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{
+                            marginBottom: '20px',
+                            paddingBottom: '20px',
+                            borderBottom: '2px solid #e0e0e0'
+                        }}>
+                            <div style={{
+                                fontSize: '18px',
+                                fontWeight: 'bold',
+                                color: '#667eea',
+                                marginBottom: '10px'
+                            }}>
+                                👤 {username}
+                            </div>
+                            <button
+                                onClick={onLogout}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: '#ff6b6b',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: 'bold',
+                                    transition: 'background 0.3s'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = '#ff5252'}
+                                onMouseLeave={(e) => e.target.style.background = '#ff6b6b'}
+                            >
+                                로그아웃
+                            </button>
+                        </div>
+
+                        <div>
+                            <div style={{
+                                fontSize: '16px',
+                                fontWeight: 'bold',
+                                marginBottom: '15px',
+                                color: '#333'
+                            }}>
+                                🟢 온라인 ({onlineUsers.size})
+                            </div>
+                            <div style={{
+                                maxHeight: '400px',
+                                overflowY: 'auto'
+                            }}>
+                                {Array.from(onlineUsers).map(user => (
+                                    <div
+                                        key={user}
+                                        style={{
+                                            padding: '10px',
+                                            background: user === username ? '#e8f4ff' : '#f5f5f5',
+                                            borderRadius: '8px',
+                                            marginBottom: '8px',
+                                            fontSize: '14px',
+                                            color: '#333'
+                                        }}
+                                    >
+                                        {user === username ? `${user} (나)` : user}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 채팅 영역 */}
+                    <div style={{
+                        flex: 1,
+                        background: 'white',
+                        borderRadius: '20px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden'
+                    }}>
+                        {/* 헤더 */}
+                        <div style={{
+                            padding: '20px',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            fontSize: '20px',
+                            fontWeight: 'bold'
+                        }}>
+                            💬 전체 채팅방
+                        </div>
+
+                        {/* 메시지 목록 */}
+                        <div style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '20px',
+                            background: '#f9f9f9'
+                        }}>
+                            {messages.length === 0 ? (
+                                <div style={{
+                                    textAlign: 'center',
+                                    color: '#999',
+                                    marginTop: '50px',
+                                    fontSize: '16px'
+                                }}>
+                                    메시지를 입력해서 대화를 시작하세요!
+                                </div>
+                            ) : (
+                                messages.map((msg) => (
+                                    <div
+                                        key={msg.id}
+                                        style={{
+                                            marginBottom: '15px',
+                                            display: 'flex',
+                                            justifyContent: msg.username === username ? 'flex-end' : 'flex-start'
+                                        }}
+                                    >
+                                        <div style={{
+                                            maxWidth: '70%'
+                                        }}>
+                                            {msg.username !== username && (
+                                                <div style={{
+                                                    fontSize: '12px',
+                                                    color: '#667eea',
+                                                    fontWeight: 'bold',
+                                                    marginBottom: '5px'
+                                                }}>
+                                                    {msg.username}
+                                                </div>
+                                            )}
+                                            <div style={{
+                                                background: msg.username === username 
+                                                    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                                                    : 'white',
+                                                color: msg.username === username ? 'white' : '#333',
+                                                padding: '12px 16px',
+                                                borderRadius: msg.username === username 
+                                                    ? '18px 18px 4px 18px' 
+                                                    : '18px 18px 18px 4px',
+                                                boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                                                wordWrap: 'break-word'
+                                            }}>
+                                                {msg.text}
+                                                {msg.isFiltered && (
+                                                    <div style={{
+                                                        fontSize: '10px',
+                                                        marginTop: '5px',
+                                                        opacity: 0.7
+                                                    }}>
+                                                        ⚠️ 부적절한 언어가 필터링되었습니다
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '11px',
+                                                color: '#999',
+                                                marginTop: '5px',
+                                                textAlign: msg.username === username ? 'right' : 'left'
+                                            }}>
+                                                {formatTime(msg.timestamp)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* 입력 폼 */}
+                        <form
+                            onSubmit={sendMessage}
+                            style={{
+                                padding: '20px',
+                                borderTop: '2px solid #e0e0e0',
+                                display: 'flex',
+                                gap: '10px'
+                            }}
+                        >
+                            <input
+                                type="text"
+                                value={inputMessage}
+                                onChange={(e) => setInputMessage(e.target.value)}
+                                placeholder="메시지를 입력하세요..."
+                                style={{
+                                    flex: 1,
+                                    padding: '15px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '25px',
+                                    fontSize: '16px',
+                                    outline: 'none',
+                                    transition: 'border 0.3s'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                            />
+                            <button
+                                type="submit"
+                                style={{
+                                    padding: '15px 30px',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '25px',
+                                    fontSize: '16px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s',
+                                    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+                                }}
+                                onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
+                                onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                            >
+                                전송
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
         }
 
-        function updateUI() {
-            document.getElementById('health').textContent = Math.max(0, player.health);
-            document.getElementById('score').textContent = player.score;
-            document.getElementById('kills').textContent = player.kills;
-            document.getElementById('ammoCount').textContent = weapon.reloading ? '재장전중...' : weapon.ammo;
+        // 메인 앱
+        function App() {
+            const [currentUser, setCurrentUser] = useState(null);
+
+            const handleLogin = (username) => {
+                setCurrentUser(username);
+            };
+
+            const handleLogout = async () => {
+                if (currentUser) {
+                    await window.storage.delete(`online:${currentUser}`, true);
+                }
+                setCurrentUser(null);
+            };
+
+            return (
+                <div>
+                    {!currentUser ? (
+                        <AuthScreen onLogin={handleLogin} />
+                    ) : (
+                        <ChatScreen username={currentUser} onLogout={handleLogout} />
+                    )}
+                </div>
+            );
         }
 
-        function endGame() {
-            gameOver = true;
-            document.getElementById('finalScore').textContent = player.score;
-            document.getElementById('finalKills').textContent = player.kills;
-            document.getElementById('gameOver').classList.remove('hidden');
-            document.exitPointerLock();
-        }
-
-        function animate() {
-            if (gameOver) return;
-            
-            requestAnimationFrame(animate);
-
-            if (gameStarted && isPointerLocked) {
-                updatePlayer();
-                updateEnemies();
-                updateBullets();
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        init();
+        ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
 </html>
